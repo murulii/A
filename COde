@@ -1,0 +1,234 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.FluentWait;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import java.time.Duration;
+
+import java.io.FileInputStream;
+import java.time.Duration;
+
+public class Login {
+
+    // ================== ENV CONFIG ==================
+    private static final String DRIVER_PATH = "/home/muruli/Downloads/chromedriver";
+    private static final String LOGIN_URL   = "https://pivotpath-dev.note-iq.com/";
+    private static final String EMAIL       = "180774@arcolab.com";
+    private static final String PASSWORD    = "Muruli@7259";
+
+    public static void main(String[] args) {
+
+        System.setProperty("webdriver.chrome.driver", DRIVER_PATH);
+
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--start-maximized");
+        options.addArguments("--incognito");
+
+        WebDriver driver = new ChromeDriver(options);
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+
+        try {
+            // ================== LOGIN ==================
+            driver.get(LOGIN_URL);
+            driver.findElement(By.name("email")).sendKeys(EMAIL);
+            driver.findElement(By.name("password")).sendKeys(PASSWORD);
+            driver.findElement(By.xpath("//button[contains(text(),'LOGIN')]")).click();
+
+            Thread.sleep(3000);
+            driver.navigate().refresh();
+
+            if (!driver.getCurrentUrl().equalsIgnoreCase("https://pivotpath-dev.note-iq.com/platform")) {
+                System.out.println("❌ Login failed");
+                return;
+            }
+
+            System.out.println("✅ Login successful");
+
+            driver.findElement(By.xpath("//h2[normalize-space()='TMS']")).click();
+            Thread.sleep(2000);
+
+            driver.get("https://pivotpath-dev.note-iq.com/tms/training-management/training-items");
+
+            // ================== EXCEL READ ==================
+            String filePath = "/home/muruli/Downloads/training.xlsx"; // 🔥 update if needed
+
+            FileInputStream fis = new FileInputStream(filePath);
+            Workbook workbook = new XSSFWorkbook(fis);
+            Sheet sheet = workbook.getSheet("Training");
+
+            DataFormatter formatter = new DataFormatter();
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+
+                Row row = sheet.getRow(i);
+                
+                String trainingNumber = formatter.formatCellValue(row.getCell(0));
+                String trainingName = formatter.formatCellValue(row.getCell(1));
+                String itemType = formatter.formatCellValue(row.getCell(2));
+                String itemCategory = formatter.formatCellValue(row.getCell(3));
+                String duration = formatter.formatCellValue(row.getCell(4));
+                String origin = formatter.formatCellValue(row.getCell(5));
+                String Entity = formatter.formatCellValue(row.getCell(6));
+                String Function = formatter.formatCellValue(row.getCell(7));
+                String assessmentType = formatter.formatCellValue(row.getCell(8));
+                String url = formatter.formatCellValue(row.getCell(9));
+                String description = formatter.formatCellValue(row.getCell(10));
+                String effectiveDate = formatter.formatCellValue(row.getCell(11));
+                String commitment = formatter.formatCellValue(row.getCell(12));
+                String commitment1 = formatter.formatCellValue(row.getCell(13));
+
+                // 🔥 Convert date (dd/MM/yyyy → yyyy-MM-dd)
+                if (effectiveDate.contains("/")) {
+                    String[] parts = effectiveDate.split("/");
+                    effectiveDate = parts[2] + "-" + parts[1] + "-" + parts[0];
+                }
+
+                // ================== CREATE TRAINING ITEM ==================
+                driver.findElement(By.xpath("//button[contains(.,'Create Training Item')]")).click();
+
+                // Training Number
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-createnumber']//input"))
+                        .sendKeys(trainingNumber);
+                
+                
+                // Training Name
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-itemname']//input"))
+                        .sendKeys(trainingName);
+
+                // Item Type
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-item']")).click();
+                driver.findElement(By.xpath("//ul[@role='listbox']//li[normalize-space()='" + itemType + "']")).click();
+
+                // Category
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-itemcategory']")).click();
+                driver.findElement(By.xpath("//ul[@role='listbox']//li[normalize-space()='" + itemCategory + "']")).click();
+
+                // Duration
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-duration']//input")).clear();
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-duration']//input"))
+                        .sendKeys(duration);
+
+                
+    
+               
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+
+              
+
+                // ✅ STEP 1: OPEN DROPDOWN ONLY ONCE
+                wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-entities']//div[@role='combobox']")
+                )).click();
+
+                Thread.sleep(1500);
+
+                // ✅ STEP 2: SELECT VALUES
+                for (String item : Entity.split(",")) {
+
+                    String value = item.trim();
+
+                    wait.until(ExpectedConditions.visibilityOfElementLocated(
+                        By.xpath("//li[normalize-space()='" + value + "']")))
+                        .click();
+                }
+
+                // ✅ STEP 3: CLOSE DROPDOWN (BEST WAY = ESC)
+                driver.switchTo().activeElement().sendKeys(Keys.ESCAPE);
+                Thread.sleep(800);
+
+                
+                
+                
+                
+                
+                	
+                
+
+             // ✅ STEP 1: OPEN FUNCTIONS DROPDOWN
+             wait.until(ExpectedConditions.elementToBeClickable(
+                 By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-fuction']//div[@role='combobox']")
+             )).click();
+
+             Thread.sleep(1500);
+
+             // ✅ STEP 2: SELECT VALUES
+             for (String item : Function.split(",")) {
+
+                 String value = item.trim();
+
+                 wait.until(ExpectedConditions.visibilityOfElementLocated(
+                     By.xpath("//li[normalize-space()='" + value + "']")))
+                     .click();
+             }
+
+             // ✅ STEP 3: CLOSE DROPDOWN
+             driver.switchTo().activeElement().sendKeys(Keys.ESCAPE);
+             Thread.sleep(800);
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                // Origin
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-origin']")).click();
+                driver.findElement(By.xpath("//ul[@role='listbox']//li[normalize-space()='" + origin + "']")).click();
+
+                // Assessment Type
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-assessementtype']")).click();
+                driver.findElement(By.xpath("//ul[@role='listbox']//li[normalize-space()='" + assessmentType + "']")).click();
+
+                // 🔥 URL FROM EXCEL
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-url']//input"))
+                        .sendKeys(url);
+                
+                
+
+                // Description
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-description']//textarea"))
+                        .sendKeys(description);
+
+                // Effective Date
+                driver.findElement(By.xpath("//div[@data-test-id='tms-trainingmanagement-trainingitemdialog-date']//input"))
+                        .sendKeys(effectiveDate);
+
+                // Commitment toggle
+                if (commitment.equalsIgnoreCase("Yes")) {
+                    driver.findElement(By.xpath("//span[@data-test-id='tms-trainingmanagement-trainingitemdialog-commitment']"))
+                            .click();
+                }
+                
+                driver.findElement(By.xpath("//textarea[@placeholder='Enter commitment statement']"))
+                .sendKeys(commitment1);
+                driver.findElement(By.cssSelector("[data-test-id='tms-trainingmanagement-trainingitemdialog-createitem']"))
+                .click();
+                
+                
+                System.out.println("✅ Created Training Item: " + trainingName);
+            }
+
+            workbook.close();
+            fis.close();
+
+        } catch (Exception e) {
+            System.out.println("❌ Execution failed: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            System.out.println("🕒 Press Enter to exit...");
+            try { System.in.read(); } catch (Exception ignored) {}
+        }
+    }
+}
